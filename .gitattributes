@@ -1,0 +1,2 @@
+# Keep repository text files portable and avoid platform-dependent line-ending diffs.
+* text=auto eol=lf
