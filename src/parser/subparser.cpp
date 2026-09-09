@@ -1007,8 +1007,8 @@ void explodeHTTPSub(std::string link, Proxy &node)
 
 void explodeTrojan(std::string trojan, Proxy &node)
 {
-    std::string server, port, psk, addition, group, remark, host, path, network;
-    tribool tfo, scv;
+    std::string server, port, psk, addition, group, remark, host, path, network, sni;
+    tribool udp, tfo, scv;
     trojan.erase(0, 9);
     string_size pos = trojan.rfind('#');
 
@@ -1029,34 +1029,36 @@ void explodeTrojan(std::string trojan, Proxy &node)
     if(port == "0")
         return;
 
-    host = getUrlArg(addition, "sni");
-    if(host.empty())
-        host = getUrlArg(addition, "peer");
+    sni = getUrlArg(addition, "sni");
+    if(sni.empty())
+        sni = getUrlArg(addition, "peer");
+    host = urlDecode(getUrlArg(addition, "host"));
+    udp = getUrlArg(addition, "udp");
     tfo = getUrlArg(addition, "tfo");
     scv = getUrlArg(addition, "allowInsecure");
     group = urlDecode(getUrlArg(addition, "group"));
 
     if(getUrlArg(addition, "ws") == "1")
     {
-        path = getUrlArg(addition, "wspath");
+        path = urlDecode(getUrlArg(addition, "wspath"));
         network = "ws";
     }
     // support the trojan link format used by v2ryaN and X-ui.
     // format: trojan://{password}@{server}:{port}?type=ws&security=tls&path={path (urlencoded)}&sni={host}#{name}
     else if(getUrlArg(addition, "type") == "ws")
     {
-        path = getUrlArg(addition, "path");
-        if(path.substr(0, 3) == "%2F")
-            path = urlDecode(path);
+        path = urlDecode(getUrlArg(addition, "path"));
         network = "ws";
     }
 
+    remark = trimWhitespace(remark);
     if(remark.empty())
         remark = server + ":" + port;
     if(group.empty())
         group = TROJAN_DEFAULT_GROUP;
 
-    trojanConstruct(node, group, remark, server, port, psk, network, host, path, true, tribool(), tfo, scv);
+    trojanConstruct(node, group, remark, server, port, urlDecode(psk), network, host, path, true, udp, tfo, scv);
+    node.SNI = sni;
 }
 
 void explodeQuan(const std::string &quan, Proxy &node)
@@ -2127,8 +2129,8 @@ void explodeAnyTLS(std::string anytls, Proxy &node) {
 }
 
 void explodeStdVLESS(std::string vless, Proxy &node) {
-    std::string add, port, uuid, sni, alpn, net, type, mode, host, path, fingerprint, remarks, addition, flow, xtls, public_key, short_id, security, tls;
-    tribool tfo, scv;
+    std::string add, port, uuid, sni, alpn, net, type, mode, host, path, fingerprint, client_fingerprint, packet_encoding, remarks, addition, flow, xtls, public_key, short_id, security, tls;
+    tribool udp, xudp, tfo, scv;
     std::string decoded, userinfo, hostinfo;
     string_array user_parts;
 
@@ -2185,6 +2187,14 @@ void explodeStdVLESS(std::string vless, Proxy &node) {
         net = getUrlArg(addition,"type");
         alpn = getUrlArg(addition, "alpn");
         fingerprint = getUrlArg(addition, "hpkp");
+        client_fingerprint = getUrlArg(addition, "fp");
+        if(client_fingerprint.empty())
+            client_fingerprint = getUrlArg(addition, "client-fingerprint");
+        packet_encoding = getUrlArg(addition, "packetEncoding");
+        if(packet_encoding.empty())
+            packet_encoding = getUrlArg(addition, "packet-encoding");
+        xudp = getUrlArg(addition, "xudp");
+        udp = getUrlArg(addition, "udp");
         flow = getUrlArg(addition, "flow");
         xtls = getUrlArg(addition, "xtls");
         public_key = getUrlArg(addition, "pbk");
@@ -2202,7 +2212,7 @@ void explodeStdVLESS(std::string vless, Proxy &node) {
             case "ws"_hash:
             case "h2"_hash:
                 type = getUrlArg(addition, "headerType");
-                host = getUrlArg(addition, strFind(addition,"sni") ? "sni" : "host");
+                host = getUrlArg(addition, "host");
                 path = getUrlArg(addition, "path");
                 break;
             case "grpc"_hash:
@@ -2226,10 +2236,16 @@ void explodeStdVLESS(std::string vless, Proxy &node) {
         }
     }
 
+    remarks = trimWhitespace(remarks);
     if (remarks.empty())
         remarks = add + ":" + port;
     node.TLSSecure = security == "tls" || security == "reality";
-    vlessConstruct(node, VLESS_DEFAULT_GROUP, remarks, add, port, uuid, sni, alpn, type, net, mode, host, path, fingerprint, flow, xtls, public_key, short_id, "", tribool(), tfo, scv, "");
+    vlessConstruct(node, VLESS_DEFAULT_GROUP, remarks, add, port, uuid, sni, alpn, type, net, mode, host, path, fingerprint, flow, xtls, public_key, short_id, client_fingerprint, udp, tfo, scv, "");
+    if(!packet_encoding.empty())
+        node.PacketEncoding = packet_encoding;
+    else if(!xudp.is_undef() && xudp)
+        node.PacketEncoding = "xudp";
+    node.XUDP = xudp;
 }
 
 void explodeVLESS(std::string vless, Proxy &node) {
@@ -3226,19 +3242,32 @@ void explodeSub(std::string sub, std::vector<Proxy> &nodes)
     //try to parse as normal subscription
     if(!processed)
     {
-        sub = urlSafeBase64Decode(sub);
+        const auto contains_node_link = [](const std::string &content)
+        {
+            return strFind(content, "ssr://") || strFind(content, "vmess://") || strFind(content, "vmess1://") ||
+                   strFind(content, "ss://") || strFind(content, "socks://") || strFind(content, "trojan://") ||
+                   strFind(content, "vless://") || strFind(content, "hysteria2://") || strFind(content, "hy2://") ||
+                   strFind(content, "tuic://") || strFind(content, "anytls://");
+        };
+
+        // Plain-text subscriptions must not be base64-decoded: a node URL itself
+        // contains enough base64 characters to be corrupted by a permissive decoder.
+        const bool plain_node_subscription = contains_node_link(sub);
+        if(!plain_node_subscription)
+            sub = urlSafeBase64Decode(sub);
         if(regFind(sub, "(vmess|shadowsocks|http|trojan)\\s*?="))
         {
             if(explodeSurge(sub, nodes))
                 return;
         }
         strstream << sub;
-        char delimiter = count(sub.begin(), sub.end(), '\n') < 1 ? count(sub.begin(), sub.end(), '\r') < 1 ? ' ' : '\r' : '\n';
+        char delimiter = count(sub.begin(), sub.end(), '\n') < 1 ? count(sub.begin(), sub.end(), '\r') < 1 ? (plain_node_subscription ? '\n' : ' ') : '\r' : '\n';
         while(getline(strstream, strLink, delimiter))
         {
             Proxy node;
             if(strLink.rfind('\r') != std::string::npos)
                 strLink.erase(strLink.size() - 1);
+            strLink = trimWhitespace(strLink);
             explode(strLink, node);
             if(strLink.empty() || node.Type == ProxyType::Unknown)
             {

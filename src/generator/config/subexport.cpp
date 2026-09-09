@@ -275,6 +275,24 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGr
 
         tribool udp = ext.udp, tfo = ext.tfo, scv = ext.skip_cert_verify;
         udp.define(x.UDP);
+
+        auto resolve_packet_encoding = [&]()
+        {
+            std::string packet_encoding = x.PacketEncoding;
+            if(!ext.xudp.is_undef())
+            {
+                if(ext.xudp)
+                    return std::string("xudp");
+                if(packet_encoding == "xudp")
+                    packet_encoding.clear();
+                return packet_encoding;
+            }
+            if(!packet_encoding.empty())
+                return packet_encoding;
+            if(!x.XUDP.is_undef())
+                return x.XUDP ? std::string("xudp") : std::string();
+            return udp ? std::string("xudp") : std::string();
+        };
         tfo.define(x.TCPFastOpen);
         scv.define(x.AllowInsecure);
 
@@ -321,6 +339,8 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGr
             singleproxy["uuid"] = x.UserId;
             singleproxy["alterId"] = x.AlterId;
             singleproxy["cipher"] = x.EncryptMethod;
+            if(std::string packet_encoding = resolve_packet_encoding(); !packet_encoding.empty())
+                singleproxy["packet-encoding"] = packet_encoding;
             singleproxy["tls"] = x.TLSSecure;
             if(!scv.is_undef())
                 singleproxy["skip-cert-verify"] = scv.get();
@@ -434,7 +454,9 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGr
         case ProxyType::Trojan:
             singleproxy["type"] = "trojan";
             singleproxy["password"] = x.Password;
-            if(!x.Host.empty())
+            if(!x.SNI.empty())
+                singleproxy["sni"] = x.SNI;
+            else if(!x.Host.empty())
                 singleproxy["sni"] = x.Host;
             if(std::all_of(x.Password.begin(), x.Password.end(), ::isdigit) && !x.Password.empty())
                 singleproxy["password"].SetTag("str");
@@ -617,11 +639,8 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGr
         case ProxyType::VLESS:
             singleproxy["type"] = "vless";
             singleproxy["tls"] = true;
-            // Output packet-encoding, xudp, packet-addr only if explicitly set
-            if (!x.PacketEncoding.empty())
-                singleproxy["packet-encoding"] = x.PacketEncoding;
-            if (!x.XUDP.is_undef())
-                singleproxy["xudp"] = x.XUDP.get();
+            if(std::string packet_encoding = resolve_packet_encoding(); !packet_encoding.empty())
+                singleproxy["packet-encoding"] = packet_encoding;
             if (!x.PacketAddr.is_undef())
                 singleproxy["packet-addr"] = x.PacketAddr.get();
             if (!x.UUID.empty())
@@ -718,8 +737,8 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGr
         // UDP is not supported yet in clash using snell
         // sees in https://dreamacro.github.io/clash/configuration/outbound.html#snell
         // Output UDP field when explicitly provided (true or false)
-        if(!x.UDP.is_undef() && x.Type != ProxyType::Snell)
-            singleproxy["udp"] = x.UDP.get();
+        if(!udp.is_undef() && x.Type != ProxyType::Snell)
+            singleproxy["udp"] = udp.get();
         if(!tfo.is_undef())
             singleproxy["tfo"] = tfo.get();
         if(proxy_block)
