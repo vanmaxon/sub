@@ -1,0 +1,74 @@
+# syntax=docker/dockerfile:1.7
+FROM alpine:3.16 AS builder
+
+ARG THREADS=4
+ARG SHA=""
+
+WORKDIR /
+
+RUN --mount=type=cache,target=/var/cache/apk \
+    set -xe && \
+    apk add --cache-dir /var/cache/apk --virtual .build-tools git g++ build-base linux-headers cmake python3 && \
+    apk add --cache-dir /var/cache/apk --virtual .build-deps curl-dev rapidjson-dev pcre2-dev yaml-cpp-dev
+
+# Keep third-party build layers independent from the application source so BuildKit can reuse them.
+RUN set -xe && \
+    git clone https://github.com/ftk/quickjspp --depth=1 && \
+    cd quickjspp && \
+    git submodule update --init && \
+    cmake -DCMAKE_BUILD_TYPE=Release . && \
+    make quickjs -j "$THREADS" && \
+    install -d /usr/lib/quickjs/ /usr/include/quickjs/ && \
+    install -m644 quickjs/libquickjs.a /usr/lib/quickjs/ && \
+    install -m644 quickjs/quickjs.h quickjs/quickjs-libc.h /usr/include/quickjs/ && \
+    install -m644 quickjspp.hpp /usr/include/
+
+RUN set -xe && \
+    git clone https://github.com/PerMalmberg/libcron --depth=1 && \
+    cd libcron && \
+    git submodule update --init && \
+    cmake -DCMAKE_BUILD_TYPE=Release . && \
+    make libcron -j "$THREADS" && \
+    install -d /usr/include/libcron/ /usr/include/date/ && \
+    install -m644 libcron/out/Release/liblibcron.a /usr/lib/ && \
+    install -m644 libcron/include/libcron/* /usr/include/libcron/ && \
+    install -m644 libcron/externals/date/include/date/* /usr/include/date/
+
+RUN set -xe && \
+    git clone https://github.com/ToruNiina/toml11 --branch=v4.3.0 --depth=1 && \
+    cd toml11 && \
+    cmake -DCMAKE_CXX_STANDARD=11 . && \
+    make install -j "$THREADS"
+
+WORKDIR /subconverter
+COPY . .
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -xe && \
+    if [ -n "$SHA" ]; then sed -i 's/\(v[0-9]\.[0-9]\.[0-9]\)/\1-'"$SHA"'/' src/version.h; fi && \
+    python3 -m ensurepip && \
+    python3 -m pip install gitpython && \
+    python3 scripts/update_rules.py -c scripts/rules_config.conf
+
+# Copy the executable out of the cache mount so the final stage always receives the current build.
+RUN --mount=type=cache,target=/subconverter/build \
+    set -xe && \
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build --parallel "$THREADS" && \
+    cp build/subconverter /tmp/subconverter
+
+FROM alpine:3.16
+LABEL maintainer="metacubex.official@gmail.com"
+
+RUN apk add --no-cache pcre2 libcurl yaml-cpp
+
+COPY --from=builder /tmp/subconverter /usr/bin/subconverter
+COPY --from=builder /subconverter/base /base/
+
+ENV TZ=Asia/Hong_Kong
+RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+WORKDIR /base
+CMD ["subconverter"]
+
+EXPOSE 25500/tcp

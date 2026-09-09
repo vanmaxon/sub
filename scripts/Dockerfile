@@ -53,7 +53,7 @@ RUN apk add --no-cache --virtual subconverter-deps pcre2 libcurl yaml-cpp
 COPY --from=builder /subconverter/subconverter /usr/bin/
 COPY --from=builder /subconverter/base /base/
 
-ENV TZ=Africa/Abidjan
+ENV TZ=Asia/Hong_Kong
 RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
 RUN echo $TZ > /etc/timezone
 
