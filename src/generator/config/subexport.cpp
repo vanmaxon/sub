@@ -701,12 +701,22 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGr
                     singleproxy["grpc-opts"]["grpc-mode"] = x.GRPCMode;
                     singleproxy["grpc-opts"]["grpc-service-name"] = x.GRPCServiceName;
                     break;
+                case "xhttp"_hash:
+                    singleproxy["network"] = "xhttp";
+                    singleproxy["xhttp-opts"]["mode"] = x.XHTTPMode;
+                    if(!x.Host.empty())
+                        singleproxy["xhttp-opts"]["host"] = x.Host;
+                    if(!x.Path.empty())
+                        singleproxy["xhttp-opts"]["path"] = x.Path;
+                    break;
                 default:
                     break;
             }
 
             if (!x.Fingerprint.empty())
                 singleproxy["fingerprint"] = x.Fingerprint;
+            if (!x.ClientFingerprint.empty())
+                singleproxy["client-fingerprint"] = x.ClientFingerprint;
             if (x.XTLS == 2) {
                 singleproxy["flow"] = "xtls-rprx-vision";
             } else if (!x.FlowSet.is_undef() && x.FlowSet.get()) {

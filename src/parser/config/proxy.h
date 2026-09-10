@@ -99,6 +99,7 @@ struct Proxy
 
     String GRPCServiceName;
     String GRPCMode;
+    String XHTTPMode;
 
     tribool UDP;
     tribool TCPFastOpen;

@@ -356,6 +356,8 @@ void vlessConstruct(
     node.UUID = uuid;
     node.SNI = sni;
     node.TransferProtocol = net.empty() ? "tcp" : net;
+    if(net == "xhttp")
+        node.XHTTPMode = mode.empty() ? "auto" : mode;
     switch(hash_(net))
     {
         case "grpc"_hash:
@@ -2208,6 +2210,11 @@ void explodeStdVLESS(std::string vless, Proxy &node) {
 
         switch(hash_(net))
         {
+            case "xhttp"_hash:
+                host = getUrlArg(addition, "host");
+                path = getUrlArg(addition, "path");
+                mode = getUrlArg(addition, "mode");
+                break;
             case "tcp"_hash:
             case "ws"_hash:
             case "h2"_hash:
