@@ -14,11 +14,6 @@ on:
       - '.github/workflows/docker-x86-manual.yml'
   workflow_dispatch:
     inputs:
-      tag:
-        description: Image tag for ghcr.io/vanmaxon/subconverter
-        required: true
-        default: manual
-        type: string
       push:
         description: Push the built image to GHCR
         required: true
@@ -30,7 +25,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: docker-x86-manual-${{ github.ref }}
+  group: docker-x86-manual
   cancel-in-progress: false
 
 env:
@@ -47,15 +42,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set image revision
+      - name: Set image date and revision
         id: revision
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          fi
+          echo "tag=$(TZ=Asia/Hong_Kong date +'%Y%m%d')" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -79,9 +70,10 @@ jobs:
             SHA=${{ steps.revision.outputs.sha_short }}
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.revision.outputs.tag }}
-            ${{ env.IMAGE_NAME }}:sha-${{ steps.revision.outputs.sha_short }}
+            ${{ env.IMAGE_NAME }}:latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.revision.outputs.tag }}
           cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
           cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
