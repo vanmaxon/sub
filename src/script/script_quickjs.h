@@ -129,6 +129,10 @@ namespace qjs
             JS_DefinePropertyValueStr(ctx, obj, "TCPFastOpen", js_traits<tribool>::wrap(ctx, n.TCPFastOpen), JS_PROP_C_W_E);
             JS_DefinePropertyValueStr(ctx, obj, "AllowInsecure", js_traits<tribool>::wrap(ctx, n.AllowInsecure), JS_PROP_C_W_E);
             JS_DefinePropertyValueStr(ctx, obj, "TLS13", js_traits<tribool>::wrap(ctx, n.TLS13), JS_PROP_C_W_E);
+            JS_DefinePropertyValueStr(ctx, obj, "TailscaleAuthKey", JS_NewString(ctx, n.TailscaleAuthKey), JS_PROP_C_W_E);
+            JS_DefinePropertyValueStr(ctx, obj, "TailscaleStateDir", JS_NewString(ctx, n.TailscaleStateDir), JS_PROP_C_W_E);
+            JS_DefinePropertyValueStr(ctx, obj, "TailscaleEphemeral", js_traits<tribool>::wrap(ctx, n.TailscaleEphemeral), JS_PROP_C_W_E);
+            JS_DefinePropertyValueStr(ctx, obj, "TailscaleAcceptRoutes", js_traits<tribool>::wrap(ctx, n.TailscaleAcceptRoutes), JS_PROP_C_W_E);
 
             JS_DefinePropertyValueStr(ctx, obj, "SnellVersion", JS_NewInt32(ctx, n.SnellVersion), JS_PROP_C_W_E);
             JS_DefinePropertyValueStr(ctx, obj, "ServerName", JS_NewString(ctx, n.ServerName), JS_PROP_C_W_E);
@@ -184,6 +188,10 @@ namespace qjs
             node.TCPFastOpen = unwrap_free<tribool>(ctx, v, "TCPFastOpen");
             node.AllowInsecure = unwrap_free<tribool>(ctx, v, "AllowInsecure");
             node.TLS13 = unwrap_free<tribool>(ctx, v, "TLS13");
+            node.TailscaleAuthKey = unwrap_free<std::string>(ctx, v, "TailscaleAuthKey");
+            node.TailscaleStateDir = unwrap_free<std::string>(ctx, v, "TailscaleStateDir");
+            node.TailscaleEphemeral = unwrap_free<tribool>(ctx, v, "TailscaleEphemeral");
+            node.TailscaleAcceptRoutes = unwrap_free<tribool>(ctx, v, "TailscaleAcceptRoutes");
 
             node.SnellVersion = unwrap_free<int32_t>(ctx, v, "SnellVersion");
             node.ServerName = unwrap_free<std::string>(ctx, v, "ServerName");

@@ -129,7 +129,8 @@ bool applyMatcher(const std::string &rule, std::string &real_rule, const Proxy &
         {ProxyType::Hysteria,     "HYSTERIA"},
         {ProxyType::Hysteria2,    "HYSTERIA2"},
         {ProxyType::TUIC,    "TUIC"},
-        {ProxyType::AnyTLS,    "ANYTLS"}
+        {ProxyType::AnyTLS,    "ANYTLS"},
+        {ProxyType::Tailscale, "TAILSCALE"}
     };
     if(startsWith(rule, "!!GROUP="))
     {
@@ -297,14 +298,30 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGr
         scv.define(x.AllowInsecure);
 
         singleproxy["name"] = x.Remark;
-        singleproxy["server"] = x.Hostname;
-        singleproxy["port"] = x.Port;
+        if(x.Type != ProxyType::Tailscale)
+        {
+            singleproxy["server"] = x.Hostname;
+            singleproxy["port"] = x.Port;
+        }
 
         if (!x.UnderlyingProxy.empty())
             singleproxy["dialer-proxy"] = x.UnderlyingProxy;
 
         switch(x.Type)
         {
+        case ProxyType::Tailscale:
+            singleproxy["type"] = "tailscale";
+            if(!x.Hostname.empty())
+                singleproxy["hostname"] = x.Hostname;
+            if(!x.TailscaleAuthKey.empty())
+                singleproxy["auth-key"] = x.TailscaleAuthKey;
+            if(!x.TailscaleStateDir.empty())
+                singleproxy["state-dir"] = x.TailscaleStateDir;
+            if(!x.TailscaleEphemeral.is_undef())
+                singleproxy["ephemeral"] = x.TailscaleEphemeral.get();
+            if(!x.TailscaleAcceptRoutes.is_undef())
+                singleproxy["accept-routes"] = x.TailscaleAcceptRoutes.get();
+            break;
         case ProxyType::Shadowsocks:
             //latest clash core removed support for chacha20 encryption
             if(ext.filter_deprecated && x.EncryptMethod == "chacha20")

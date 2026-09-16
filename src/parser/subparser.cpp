@@ -1271,7 +1271,8 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
         else if (singleproxy["underlying-proxy"].IsDefined())
             singleproxy["underlying-proxy"] >>= underlying_proxy;
 
-        if(port.empty() || port == "0")
+        // Tailscale uses its own hostname and does not require a server port.
+        if(proxytype != "tailscale" && (port.empty() || port == "0"))
             continue;
         udp = safe_as<std::string>(singleproxy["udp"]);
         tfo = safe_as<std::string>(singleproxy["fast-open"]);
@@ -1290,6 +1291,18 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
 
         switch(hash_(proxytype))
         {
+        case "tailscale"_hash:
+            node.Type = ProxyType::Tailscale;
+            node.Group = TAILSCALE_DEFAULT_GROUP;
+            node.Remark = ps;
+            singleproxy["hostname"] >>= node.Hostname;
+            singleproxy["auth-key"] >>= node.TailscaleAuthKey;
+            singleproxy["state-dir"] >>= node.TailscaleStateDir;
+            node.TailscaleEphemeral = safe_as<std::string>(singleproxy["ephemeral"]);
+            node.TailscaleAcceptRoutes = safe_as<std::string>(singleproxy["accept-routes"]);
+            node.UDP = udp;
+            node.UnderlyingProxy = underlying_proxy;
+            break;
         case "vmess"_hash:
             group = V2RAY_DEFAULT_GROUP;
 

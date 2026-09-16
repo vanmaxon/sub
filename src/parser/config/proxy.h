@@ -25,7 +25,8 @@ enum class ProxyType
     Hysteria,
     Hysteria2,
     TUIC,
-    AnyTLS
+    AnyTLS,
+    Tailscale
 };
 
 inline String getProxyTypeName(ProxyType type)
@@ -60,6 +61,8 @@ inline String getProxyTypeName(ProxyType type)
         return "TUIC";
     case ProxyType::AnyTLS:
         return "AnyTLS";
+    case ProxyType::Tailscale:
+        return "Tailscale";
     default:
         return "Unknown";
     }
@@ -111,6 +114,11 @@ struct Proxy
     uint32_t UdpOverTcpVersion = 0;
 
     String UnderlyingProxy;
+
+    String TailscaleAuthKey;
+    String TailscaleStateDir;
+    tribool TailscaleEphemeral;
+    tribool TailscaleAcceptRoutes;
 
     uint16_t SnellVersion = 0;
     String ServerName;
@@ -236,5 +244,6 @@ struct Proxy
 #define HYSTERIA2_DEFAULT_GROUP "Hysteria2Provider"
 #define TUIC_DEFAULT_GROUP "TUICProvider"
 #define ANYTLS_DEFAULT_GROUP "AnyTLSProvider"
+#define TAILSCALE_DEFAULT_GROUP "TailscaleProvider"
 
 #endif // PROXY_H_INCLUDED
